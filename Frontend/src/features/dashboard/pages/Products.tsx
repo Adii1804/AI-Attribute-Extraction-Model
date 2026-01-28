@@ -308,7 +308,7 @@ export default function Products() {
           return {
             key: job.id,
             name: job.designNumber || job.category?.name || job.id,
-            productType: majorCategory || '—',
+            productType: majorCategory || job.category?.name || '—',
             vendor: job.vendorName || '—',
             status: normalizeStatus(job.status),
             rawStatus,
