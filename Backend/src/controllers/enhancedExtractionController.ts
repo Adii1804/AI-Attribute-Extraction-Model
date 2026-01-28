@@ -90,7 +90,7 @@ export class EnhancedExtractionController {
       });
 
       // Ensure major_category exists in attributes list
-      if (!attributes.some(a => a.key === 'major_category')) {
+      if (!attributes.some((a: any) => a.key === 'major_category')) {
         const majorAttr = await this.ensureMajorCategoryAttribute();
         if (majorAttr) {
           attributes.push(majorAttr);
@@ -98,7 +98,7 @@ export class EnhancedExtractionController {
       }
 
       const attributeIdByKey = new Map<string, number>();
-      attributes.forEach((attr) => {
+      attributes.forEach((attr: any) => {
         const keyToken = normalizeToken(attr.key);
         const labelToken = normalizeToken(attr.label || '');
         if (keyToken) {

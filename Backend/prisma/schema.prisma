@@ -309,6 +309,7 @@ model User {
   extractionJobs  ExtractionJob[]
   verifications   ExtractionResult[]  @relation("UserVerifications")
   apiKeys         ApiKey[]
+  costSummary     CostSummary?
   
   // Metadata
   createdAt       DateTime            @default(now()) @map("created_at")
