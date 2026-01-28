@@ -85,18 +85,12 @@ export class EnhancedExtractionController {
 
       if (!fallbackCategory) return;
 
-      interface AttributeLite {
-        id: number;
-        key: string;
-        label: string;
-      }
-
-      let attributes: AttributeLite[] = await prisma.masterAttribute.findMany({
+      let attributes = await prisma.masterAttribute.findMany({
         select: { id: true, key: true, label: true }
-      }) as any;
+      });
 
       // Ensure major_category exists in attributes list
-      if (!attributes.some((a: AttributeLite) => a.key === 'major_category')) {
+      if (!attributes.some((a: any) => a.key === 'major_category')) {
         const majorAttr = await this.ensureMajorCategoryAttribute();
         if (majorAttr) {
           attributes.push(majorAttr);
@@ -104,7 +98,7 @@ export class EnhancedExtractionController {
       }
 
       const attributeIdByKey = new Map<string, number>();
-      attributes.forEach((attr: AttributeLite) => {
+      attributes.forEach((attr: any) => {
         const keyToken = normalizeToken(attr.key);
         const labelToken = normalizeToken(attr.label || '');
         if (keyToken) {
@@ -147,7 +141,7 @@ export class EnhancedExtractionController {
         const majorToken = normalizeToken('major_category');
         const majorAltToken = normalizeToken('major category');
         const majorAttributeId = attributeIdByKey.get(majorToken) || attributeIdByKey.get(majorAltToken);
-        const hasMajor = attributeEntries.some(entry => entry.attributeId === majorAttributeId);
+        const hasMajor = attributeEntries.some((entry: any) => entry.attributeId === majorAttributeId);
         if (majorAttributeId && !hasMajor) {
           attributeEntries.push({
             attributeId: majorAttributeId,
@@ -177,7 +171,7 @@ export class EnhancedExtractionController {
 
       if (attributeEntries.length > 0) {
         await prisma.extractionResult.createMany({
-          data: attributeEntries.map((entry) => ({
+          data: attributeEntries.map((entry: any) => ({
             jobId: job.id,
             attributeId: entry.attributeId,
             rawValue: entry.rawValue,
@@ -333,7 +327,7 @@ export class EnhancedExtractionController {
 
       console.log(`Enhanced Base64 VLM Extraction - Discovery: ${discoveryMode}, Schema: ${schema.length} attrs, Force Refresh: ${forceRefresh}`);
 
-      // � CACHING DISABLED - Always fetch fresh results
+      //  CACHING DISABLED - Always fetch fresh results
       const shouldUseCache = false; // Disabled caching
       
       // Cache checking code removed - always perform fresh extraction
@@ -629,7 +623,7 @@ export class EnhancedExtractionController {
         };
 
         const attributeIdByKey = new Map<string, number>();
-        schema.forEach((item: SchemaItem & { _metadata?: any }) => {
+        schema.forEach((item: any) => {
           const id = item?._metadata?.attributeId;
           const keyToken = normalizeToken(item?.key);
           const labelToken = normalizeToken(item?.label);
@@ -675,7 +669,7 @@ export class EnhancedExtractionController {
           const majorToken = normalizeToken('major_category');
           const majorAltToken = normalizeToken('major category');
           const majorAttributeId = attributeIdByKey.get(majorToken) || attributeIdByKey.get(majorAltToken);
-          const hasMajor = attributeEntries.some(entry => entry.attributeId === majorAttributeId);
+          const hasMajor = attributeEntries.some((entry: any) => entry.attributeId === majorAttributeId);
           if (majorAttributeId && !hasMajor) {
             attributeEntries.push({
               attributeId: majorAttributeId,
@@ -712,7 +706,7 @@ export class EnhancedExtractionController {
 
         if (attributeEntries.length > 0) {
           await prisma.extractionResult.createMany({
-            data: attributeEntries.map((entry) => ({
+            data: attributeEntries.map((entry: any) => ({
               jobId: job.id,
               attributeId: entry.attributeId,
               rawValue: entry.rawValue,
