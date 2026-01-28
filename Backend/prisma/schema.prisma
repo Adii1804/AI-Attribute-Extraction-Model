@@ -1,0 +1,471 @@
+// ============================================
+// FASHION HIERARCHY DATABASE SCHEMA
+// ============================================
+// This schema manages the complete fashion product hierarchy:
+// Department → Sub-Department → Category → Attributes
+// 
+// Author: AI Fashion Extractor Team
+// Date: 2025-10-16
+// Database: PostgreSQL with Prisma ORM
+// ============================================
+
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["fullTextSearchPostgres"]
+  binaryTargets   = ["native"]
+  engineType      = "binary"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// HIERARCHY TABLES
+// ============================================
+
+/// Department: Top level of hierarchy (MENS, LADIES, KIDS)
+model Department {
+  id              Int              @id @default(autoincrement())
+  code            String           @unique @db.VarChar(50)
+  name            String           @db.VarChar(100)
+  description     String?          @db.Text
+  displayOrder    Int              @default(0) @map("display_order")
+  isActive        Boolean          @default(true) @map("is_active")
+  
+  // Relations
+  subDepartments  SubDepartment[]
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@index([code])
+  @@index([isActive])
+  @@map("departments")
+}
+
+/// Sub-Department: Second level (TOPWEAR, BOTTOMWEAR, INNERWEAR)
+model SubDepartment {
+  id              Int              @id @default(autoincrement())
+  departmentId    Int              @map("department_id")
+  code            String           @db.VarChar(50)
+  name            String           @db.VarChar(100)
+  description     String?          @db.Text
+  displayOrder    Int              @default(0) @map("display_order")
+  isActive        Boolean          @default(true) @map("is_active")
+  
+  // Relations
+  department      Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  categories      Category[]
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@unique([departmentId, code])
+  @@index([departmentId, isActive])
+  @@map("sub_departments")
+}
+
+/// Category: Third level (T_SHIRT, JEANS, DRESS)
+model Category {
+  id              Int                   @id @default(autoincrement())
+  subDepartmentId Int                   @map("sub_department_id")
+  code            String                @unique @db.VarChar(50)
+  name            String                @db.VarChar(100)
+  fullForm        String?               @map("full_form") @db.VarChar(200)
+  description     String?               @db.Text
+  
+  // Additional metadata from Excel
+  merchandiseCode String?               @map("merchandise_code") @db.VarChar(50)
+  merchandiseDesc String?               @map("merchandise_desc") @db.VarChar(200)
+  fabricDivision  String?               @map("fabric_division") @db.VarChar(50)
+  
+  // Garment classification for prompt optimization
+  garmentType     GarmentType           @default(UPPER) @map("garment_type")
+  
+  displayOrder    Int                   @default(0) @map("display_order")
+  isActive        Boolean               @default(true) @map("is_active")
+  
+  // Relations
+  subDepartment   SubDepartment         @relation(fields: [subDepartmentId], references: [id], onDelete: Cascade)
+  attributes      CategoryAttribute[]
+  extractions     ExtractionJob[]
+  
+  // Metadata
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  
+  @@index([subDepartmentId, isActive])
+  @@index([code])
+  @@map("categories")
+}
+
+// ============================================
+// ATTRIBUTE DEFINITION TABLES
+// ============================================
+
+/// Master Attributes: All possible attributes (COLOR, SIZE, FABRIC, etc.)
+model MasterAttribute {
+  id                    Int                     @id @default(autoincrement())
+  key                   String                  @unique @db.VarChar(100)
+  label                 String                  @db.VarChar(200)
+  fullForm              String?                 @map("full_form") @db.VarChar(200)
+  type                  AttributeType           @default(TEXT)
+  category              String?                 @db.VarChar(50)
+  description           String?                 @db.Text
+  isRequired            Boolean                 @default(false) @map("is_required")
+  displayOrder          Int                     @default(0) @map("display_order")
+  isActive              Boolean                 @default(true) @map("is_active")
+  
+  // AI Extraction Configuration
+  aiExtractable         Boolean                 @default(true) @map("ai_extractable")
+  visibleFromDistance   Boolean                 @default(true) @map("visible_from_distance")
+  extractionPriority    Int                     @default(50) @map("extraction_priority")
+  confidenceThreshold   Decimal                 @default(0.70) @map("confidence_threshold") @db.Decimal(3, 2)
+  
+  // Range Detection Configuration
+  hasRangeDetection     Boolean                 @default(false) @map("has_range_detection")
+  rangeType             String?                 @map("range_type") @db.VarChar(50)
+  rangeConfig           Json?                   @map("range_config")
+  
+  // Validation Rules (stored as JSON)
+  validationRules       Json?                   @map("validation_rules")
+  
+  // Relations
+  allowedValues         AttributeAllowedValue[]
+  categoryAttributes    CategoryAttribute[]
+  extractions           ExtractionResult[]
+  
+  // Metadata
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+  
+  @@index([key])
+  @@index([type])
+  @@index([isActive])
+  @@index([aiExtractable])
+  @@map("master_attributes")
+}
+
+/// Attribute Allowed Values: Dropdown options for each attribute
+model AttributeAllowedValue {
+  id              Int                 @id @default(autoincrement())
+  attributeId     Int                 @map("attribute_id")
+  shortForm       String              @map("short_form") @db.VarChar(100)
+  fullForm        String              @map("full_form") @db.VarChar(200)
+  aliases         String[]            @default([])
+  displayOrder    Int                 @default(0) @map("display_order")
+  isActive        Boolean             @default(true) @map("is_active")
+  
+  // Relations
+  attribute       MasterAttribute     @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  matchedResults  ExtractionResult[]
+  
+  // Metadata
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  
+  @@unique([attributeId, shortForm])
+  @@index([attributeId, isActive])
+  @@map("attribute_allowed_values")
+}
+
+// ============================================
+// CATEGORY-ATTRIBUTE MAPPING
+// ============================================
+
+/// Category Attributes: Which attributes are enabled for each category (1/0 matrix)
+model CategoryAttribute {
+  id              Int              @id @default(autoincrement())
+  categoryId      Int              @map("category_id")
+  attributeId     Int              @map("attribute_id")
+  isEnabled       Boolean          @default(true) @map("is_enabled")
+  isRequired      Boolean          @default(false) @map("is_required")
+  displayOrder    Int              @default(0) @map("display_order")
+  defaultValue    String?          @map("default_value") @db.VarChar(200)
+  
+  // Relations
+  category        Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  attribute       MasterAttribute  @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@unique([categoryId, attributeId])
+  @@index([categoryId, isEnabled])
+  @@map("category_attributes")
+}
+
+// ============================================
+// EXTRACTION JOBS & RESULTS
+// ============================================
+
+/// Extraction Job: Each image extraction session
+model ExtractionJob {
+  id                String                @id @default(uuid())
+  userId            Int?                  @map("user_id")
+  categoryId        Int                   @map("category_id")
+  
+  // Image Info
+  imageUrl          String                @map("image_url") @db.Text
+  imageHash         String?               @map("image_hash") @db.VarChar(64)
+  
+  // Product Info (NOT attributes - these are metadata fields)
+  vendorName        String?               @map("vendor_name") @db.VarChar(200)
+  designNumber      String?               @map("design_number") @db.VarChar(100)
+  costPrice         Decimal?              @map("cost_price") @db.Decimal(10, 2)
+  sellingPrice      Decimal?              @map("selling_price") @db.Decimal(10, 2)
+  notes             String?               @db.Text
+  
+  // Extraction Status
+  status            ExtractionStatus      @default(PENDING)
+  aiModel           String?               @map("ai_model") @db.VarChar(50)
+  processingTimeMs  Int?                  @map("processing_time_ms")
+  tokensUsed        Int?                  @map("tokens_used")
+  inputTokens       Int?                  @map("input_tokens")
+  outputTokens      Int?                  @map("output_tokens")
+  apiCost           Decimal?              @map("api_cost") @db.Decimal(10, 6)
+  errorMessage      String?               @map("error_message") @db.Text
+  
+  // Results Summary
+  totalAttributes   Int?                  @map("total_attributes")
+  extractedCount    Int?                  @map("extracted_count")
+  avgConfidence     Decimal?              @map("avg_confidence") @db.Decimal(5, 2)
+  
+  // Relations
+  category          Category              @relation(fields: [categoryId], references: [id])
+  user              User?                 @relation(fields: [userId], references: [id])
+  results           ExtractionResult[]
+  
+  // Metadata
+  createdAt         DateTime              @default(now()) @map("created_at")
+  completedAt       DateTime?             @map("completed_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  
+  @@index([userId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("extraction_jobs")
+}
+
+/// Extraction Result: Individual attribute extraction results
+model ExtractionResult {
+  id                String              @id @default(uuid())
+  jobId             String              @map("job_id")
+  attributeId       Int                 @map("attribute_id")
+  
+  // Extracted Value
+  rawValue          String?             @map("raw_value") @db.VarChar(500)
+  matchedValueId    Int?                @map("matched_value_id")
+  finalValue        String?             @map("final_value") @db.VarChar(500)
+  
+  // AI Metadata
+  confidence        Decimal?            @db.Decimal(5, 2)
+  extractionMethod  String?             @map("extraction_method") @db.VarChar(50)
+  alternativeValues Json?               @map("alternative_values")
+  
+  // Validation
+  isVerified        Boolean             @default(false) @map("is_verified")
+  verifiedBy        Int?                @map("verified_by")
+  verifiedAt        DateTime?           @map("verified_at")
+  
+  // Relations
+  job               ExtractionJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  attribute         MasterAttribute     @relation(fields: [attributeId], references: [id])
+  matchedValue      AttributeAllowedValue? @relation(fields: [matchedValueId], references: [id])
+  verifier          User?               @relation("UserVerifications", fields: [verifiedBy], references: [id])
+  
+  // Metadata
+  createdAt         DateTime            @default(now()) @map("created_at")
+  
+  @@index([jobId])
+  @@index([attributeId])
+  @@index([confidence])
+  @@map("extraction_results")
+}
+
+// ============================================
+// AUTHENTICATION
+// ============================================
+
+/// User: Admin and regular users
+model User {
+  id              Int                 @id @default(autoincrement())
+  email           String              @unique @db.VarChar(255)
+  password        String              @db.VarChar(255)
+  name            String              @db.VarChar(100)
+  role            UserRole            @default(USER)
+  isActive        Boolean             @default(true) @map("is_active")
+  lastLogin       DateTime?           @map("last_login")
+  
+  // Relations
+  extractionJobs  ExtractionJob[]
+  verifications   ExtractionResult[]  @relation("UserVerifications")
+  apiKeys         ApiKey[]
+  
+  // Metadata
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================
+// AUDIT & HISTORY
+// ============================================
+
+/// Audit Log: Comprehensive audit trail for all API calls
+model AuditLog {
+  id              Int              @id @default(autoincrement())
+  userId          Int?             @map("user_id")
+  action          String           @db.VarChar(50)    // READ, CREATE, UPDATE, DELETE
+  resource        String           @db.VarChar(100)   // departments, categories, extract, etc.
+  resourceId      String?          @map("resource_id") @db.VarChar(100)
+  method          String           @db.VarChar(10)    // GET, POST, PUT, DELETE
+  path            String           @db.VarChar(500)
+  statusCode      Int              @map("status_code")
+  ip              String           @db.VarChar(45)
+  userAgent       String?          @map("user_agent") @db.Text
+  requestBody     Json?            @map("request_body")
+  responseBody    Json?            @map("response_body")
+  duration        Int              // milliseconds
+  errorMessage    String?          @map("error_message") @db.Text
+  
+  // Metadata
+  timestamp       DateTime         @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([timestamp])
+  @@index([statusCode])
+  @@map("audit_logs")
+}
+
+/// API Key: For programmatic access and integrations
+model ApiKey {
+  id              Int              @id @default(autoincrement())
+  userId          Int              @map("user_id")
+  name            String           @db.VarChar(100)
+  key             String           @unique @db.VarChar(255)
+  permissions     Json             // Array of allowed endpoints/resources
+  isActive        Boolean          @default(true) @map("is_active")
+  lastUsed        DateTime?        @map("last_used")
+  expiresAt       DateTime?        @map("expires_at")
+  
+  // Relations
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  
+  @@index([userId])
+  @@index([key])
+  @@index([isActive])
+  @@map("api_keys")
+}
+
+/// Change History: Track all changes for audit trail
+model ChangeHistory {
+  id              Int              @id @default(autoincrement())
+  tableName       String           @map("table_name") @db.VarChar(50)
+  recordId        Int              @map("record_id")
+  action          ChangeAction
+  oldValue        Json?            @map("old_value")
+  newValue        Json?            @map("new_value")
+  changedBy       Int?             @map("changed_by")
+  changedAt       DateTime         @default(now()) @map("changed_at")
+  
+  @@index([tableName, recordId])
+  @@index([changedBy])
+  @@index([changedAt])
+  @@map("change_history")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum AttributeType {
+  TEXT
+  SELECT
+  NUMBER
+  BOOLEAN
+  DATE
+  
+  @@map("attribute_type")
+}
+
+enum ExtractionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  
+  @@map("extraction_status")
+}
+
+enum ChangeAction {
+  INSERT
+  UPDATE
+  DELETE
+  
+  @@map("change_action")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  
+  @@map("user_role")
+}
+
+enum GarmentType {
+  UPPER        // Shirts, T-shirts, Tops, Jackets, Sweaters
+  LOWER        // Pants, Jeans, Shorts, Skirts, Leggings
+  ALL_IN_ONE   // Dresses, Jumpsuits, Rompers, Full Sets
+  
+  @@map("garment_type")
+}
+
+// ============================================
+// COST TRACKING TABLES
+// ============================================
+
+/// CostSummary: Aggregated cost statistics
+model CostSummary {
+  id                    String      @id @default(uuid())
+  userId                Int?        @map("user_id")
+  
+  // Totals
+  totalImages           Int         @default(0) @map("total_images")
+  totalInputTokens      Int         @default(0) @map("total_input_tokens")
+  totalOutputTokens     Int         @default(0) @map("total_output_tokens")
+  totalCost             Decimal     @default(0) @db.Decimal(12, 6) @map("total_cost")
+  
+  // Averages
+  averageInputTokens    Int         @default(0) @map("average_input_tokens")
+  averageOutputTokens   Int         @default(0) @map("average_output_tokens")
+  averageCostPerImage   Decimal     @default(0) @db.Decimal(10, 6) @map("average_cost_per_image")
+  
+  // Metadata
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+  
+  // Relations
+  user                  User?       @relation(fields: [userId], references: [id])
+  
+  @@unique([userId])
+  @@index([userId])
+  @@map("cost_summary")
+}
