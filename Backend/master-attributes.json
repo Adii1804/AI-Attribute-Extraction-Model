@@ -7,6 +7,13 @@
     "allowedValues": []
   },
   {
+    "id": 139,
+    "key": "major_category",
+    "label": "Major Category",
+    "type": "TEXT",
+    "allowedValues": []
+  },
+  {
     "id": 141,
     "key": "design_number",
     "label": "Design Number",

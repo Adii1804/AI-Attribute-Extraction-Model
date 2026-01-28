@@ -11,6 +11,36 @@ export class EnhancedExtractionController {
   private vlmService = new VLMService();
   private schemaService = new SchemaService();
 
+  /**
+   * Ensures the major_category master attribute exists in the database
+   */
+  private async ensureMajorCategoryAttribute(): Promise<any> {
+    try {
+      let majorAttr = await prisma.masterAttribute.findFirst({
+        where: { key: 'major_category' },
+        select: { id: true, key: true, label: true }
+      });
+
+      if (!majorAttr) {
+        majorAttr = await prisma.masterAttribute.create({
+          data: {
+            key: 'major_category',
+            label: 'Major Category',
+            type: 'TEXT',
+            displayOrder: 999,
+            aiExtractable: true
+          },
+          select: { id: true, key: true, label: true }
+        });
+        console.log('✅ Auto-created missing major_category attribute');
+      }
+      return majorAttr;
+    } catch (error) {
+      console.warn('Could not ensure major_category attribute:', error);
+      return null;
+    }
+  }
+
   private async persistExtractionJob(params: {
     image: string;
     schema: SchemaItem[];
@@ -51,13 +81,22 @@ export class EnhancedExtractionController {
 
       const fallbackCategory = category
         ? category
-        : await prisma.category.findFirst({ select: { id: true } });
+        : await prisma.category.findFirst({ select: { id: true, name: true } });
 
       if (!fallbackCategory) return;
 
-      const attributes = await prisma.masterAttribute.findMany({
+      let attributes = await prisma.masterAttribute.findMany({
         select: { id: true, key: true, label: true }
       });
+
+      // Ensure major_category exists in attributes list
+      if (!attributes.some(a => a.key === 'major_category')) {
+        const majorAttr = await this.ensureMajorCategoryAttribute();
+        if (majorAttr) {
+          attributes.push(majorAttr);
+        }
+      }
+
       const attributeIdByKey = new Map<string, number>();
       attributes.forEach((attr) => {
         const keyToken = normalizeToken(attr.key);
@@ -93,7 +132,11 @@ export class EnhancedExtractionController {
 
       const majorMetaValue = (result.extractedMetadata as any)?.majorCategory
         ?? (result.extractedMetadata as any)?.major_category
+        ?? (result.attributes as any)?.major_category?.schemaValue
+        ?? (result.attributes as any)?.major_category?.rawValue
+        ?? (fallbackCategory as any)?.name
         ?? null;
+
       if (majorMetaValue) {
         const majorToken = normalizeToken('major_category');
         const majorAltToken = normalizeToken('major category');
@@ -589,10 +632,7 @@ export class EnhancedExtractionController {
         });
 
         if (!attributeIdByKey.has(normalizeToken('major_category'))) {
-          const majorAttr = await prisma.masterAttribute.findFirst({
-            where: { key: 'major_category' },
-            select: { id: true, key: true, label: true }
-          });
+          const majorAttr = await this.ensureMajorCategoryAttribute();
           if (majorAttr) {
             const keyToken = normalizeToken(majorAttr.key);
             const labelToken = normalizeToken(majorAttr.label || '');
@@ -621,7 +661,10 @@ export class EnhancedExtractionController {
 
         const majorMetaValue = (result.extractedMetadata as any)?.majorCategory
           ?? (result.extractedMetadata as any)?.major_category
-          ?? null;
+          ?? (result.attributes as any)?.major_category?.schemaValue
+          ?? (result.attributes as any)?.major_category?.rawValue
+          ?? category.name;
+
         if (majorMetaValue) {
           const majorToken = normalizeToken('major_category');
           const majorAltToken = normalizeToken('major category');
