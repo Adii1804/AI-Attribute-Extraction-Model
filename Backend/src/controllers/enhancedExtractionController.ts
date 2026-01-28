@@ -85,12 +85,18 @@ export class EnhancedExtractionController {
 
       if (!fallbackCategory) return;
 
-      let attributes = await prisma.masterAttribute.findMany({
+      interface AttributeLite {
+        id: number;
+        key: string;
+        label: string;
+      }
+
+      let attributes: AttributeLite[] = await prisma.masterAttribute.findMany({
         select: { id: true, key: true, label: true }
-      });
+      }) as any;
 
       // Ensure major_category exists in attributes list
-      if (!attributes.some((a: any) => a.key === 'major_category')) {
+      if (!attributes.some((a: AttributeLite) => a.key === 'major_category')) {
         const majorAttr = await this.ensureMajorCategoryAttribute();
         if (majorAttr) {
           attributes.push(majorAttr);
@@ -98,14 +104,14 @@ export class EnhancedExtractionController {
       }
 
       const attributeIdByKey = new Map<string, number>();
-      attributes.forEach((attr: any) => {
+      attributes.forEach((attr: AttributeLite) => {
         const keyToken = normalizeToken(attr.key);
         const labelToken = normalizeToken(attr.label || '');
         if (keyToken) {
-          expandTokens(keyToken).forEach(t => attributeIdByKey.set(t, attr.id));
+          expandTokens(keyToken).forEach((t: string) => attributeIdByKey.set(t, attr.id));
         }
         if (labelToken) {
-          expandTokens(labelToken).forEach(t => attributeIdByKey.set(t, attr.id));
+          expandTokens(labelToken).forEach((t: string) => attributeIdByKey.set(t, attr.id));
         }
       });
 
@@ -623,12 +629,12 @@ export class EnhancedExtractionController {
         };
 
         const attributeIdByKey = new Map<string, number>();
-        schema.forEach((item: any) => {
+        schema.forEach((item: SchemaItem & { _metadata?: any }) => {
           const id = item?._metadata?.attributeId;
           const keyToken = normalizeToken(item?.key);
           const labelToken = normalizeToken(item?.label);
-          if (id && keyToken) expandTokens(keyToken).forEach(t => attributeIdByKey.set(t, id));
-          if (id && labelToken) expandTokens(labelToken).forEach(t => attributeIdByKey.set(t, id));
+          if (id && keyToken) expandTokens(keyToken).forEach((t: string) => attributeIdByKey.set(t, id));
+          if (id && labelToken) expandTokens(labelToken).forEach((t: string) => attributeIdByKey.set(t, id));
         });
 
         if (!attributeIdByKey.has(normalizeToken('major_category'))) {
@@ -636,8 +642,8 @@ export class EnhancedExtractionController {
           if (majorAttr) {
             const keyToken = normalizeToken(majorAttr.key);
             const labelToken = normalizeToken(majorAttr.label || '');
-            if (keyToken) expandTokens(keyToken).forEach(t => attributeIdByKey.set(t, majorAttr.id));
-            if (labelToken) expandTokens(labelToken).forEach(t => attributeIdByKey.set(t, majorAttr.id));
+            if (keyToken) expandTokens(keyToken).forEach((t: string) => attributeIdByKey.set(t, majorAttr.id));
+            if (labelToken) expandTokens(labelToken).forEach((t: string) => attributeIdByKey.set(t, majorAttr.id));
           }
         }
 

@@ -1275,7 +1275,7 @@ IMPORTANT:
     const values = Object.values(attributes).filter(attr => attr !== null);
     if (values.length === 0) return 0;
     
-    const totalConfidence = values.reduce((sum, attr) => sum + (attr?.visualConfidence || 0), 0);
+    const totalConfidence = values.reduce((sum: number, attr: any) => sum + (attr?.visualConfidence || 0), 0);
     return Math.round(totalConfidence / values.length);
   }
 }

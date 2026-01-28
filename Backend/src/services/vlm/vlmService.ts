@@ -397,7 +397,7 @@ export class VLMService {
       .filter(conf => conf > 0);
 
     if (confidenceValues.length === 0) return 0;
-    return Math.round(confidenceValues.reduce((sum, conf) => sum + conf, 0) / confidenceValues.length);
+    return Math.round(confidenceValues.reduce((sum: number, conf: number) => sum + conf, 0) / confidenceValues.length);
   }
 
   /**

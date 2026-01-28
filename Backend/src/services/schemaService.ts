@@ -127,9 +127,9 @@ export class SchemaService {
       })),
       stats: {
         totalDepartments: departments.length,
-        totalSubDepartments: departments.reduce((sum, d) => sum + d.subDepartments.length, 0),
-        totalCategories: departments.reduce((sum, d) => 
-          sum + d.subDepartments.reduce((s, sd) => s + sd.categories.length, 0), 0
+        totalSubDepartments: departments.reduce((sum: number, d: any) => sum + d.subDepartments.length, 0),
+        totalCategories: departments.reduce((sum: number, d: any) =>
+          sum + d.subDepartments.reduce((s: number, sd: any) => s + sd.categories.length, 0), 0
         )
       }
     };
@@ -199,7 +199,7 @@ export class SchemaService {
       requiredAttributes: category.attributes.filter(ca => ca.isRequired).length,
       aiExtractableAttributes: attributes.filter(a => a.aiExtractable).length,
       visibleAttributes: attributes.filter(a => a.visibleFromDistance).length,
-      totalAllowedValues: attributes.reduce((sum, a) => sum + a.allowedValues.length, 0),
+      totalAllowedValues: attributes.reduce((sum: number, a: any) => sum + a.allowedValues.length, 0),
       attributesByCategory: {
         fabric: attributes.filter(a => a.category === 'fabric').length,
         design: attributes.filter(a => a.category === 'design').length,
